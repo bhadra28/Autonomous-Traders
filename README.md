@@ -17,6 +17,29 @@ strategy, research the market and buy and sell shares on their own. It's built w
 - **Dashboards**: a Gradio UI (`app.py` + `demo/`), or a FastAPI JSON API (`backend/api.py`) with a
   Vite/TypeScript frontend (`frontend/`).
 
+## Risk guardrails and performance metrics
+
+My addition to the course project: autonomous agents shouldn't be trusted to police themselves, so every
+trade now passes pre-trade risk checks in the accounts layer, where no prompt can get around them.
+
+- **Guardrails** (`backend/risk.py`): limits on position size (default 30% of portfolio value per symbol),
+  trade size (20% per trade) and trades per day (10). Zero and negative quantities are rejected too. Before
+  this, a negative "buy" would have *added* cash to an account.
+- **Agents adapt instead of failing**: a blocked trade returns an error naming the largest allowed quantity,
+  so the agent can resize and retry. Every block is logged (orange in the dashboard).
+- **New MCP tools**: `get_risk_limits`, so agents can size trades up front, and `get_performance`
+  (`backend/metrics.py`), which reports total return, max drawdown, volatility, realized P&L
+  (average-cost method), trade counts and blocked trades.
+- **Visible everywhere**: a metrics strip on each trader in the Gradio dashboard, plus
+  `GET /api/risk-limits` and `GET /api/traders/{name}/performance`.
+- **Tests**: a pytest suite for the limits, metrics and account integration, using a throwaway database.
+
+Limits are set in `.env` (see `.env.example`). Run the tests with:
+
+```bash
+uv run pytest
+```
+
 ## Setup
 
 Prerequisites: [uv](https://docs.astral.sh/uv/), Python 3.12+, and Node.js (for `npx` MCP servers and the frontend).

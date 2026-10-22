@@ -3,7 +3,9 @@ import json
 from dotenv import load_dotenv
 from datetime import datetime
 from .market import get_share_price
-from .database import write_account, read_account, write_log
+from .database import write_account, read_account, write_log, count_logs
+from .risk import RiskLimits, RiskLimitError, check_buy, check_sell
+from .metrics import performance
 
 load_dotenv(override=True)
 
@@ -79,14 +81,18 @@ class Account(BaseModel):
     def buy_shares(self, symbol: str, quantity: int, rationale: str) -> str:
         """ Buy shares of a stock if sufficient funds are available. """
         price = get_share_price(symbol)
+        if price == 0:
+            raise ValueError(f"Unrecognized symbol {symbol}")
         buy_price = price * (1 + SPREAD)
+        self._risk_check(lambda: check_buy(
+            RiskLimits.from_env(), symbol, quantity, buy_price, self.holdings.get(symbol, 0),
+            self.calculate_portfolio_value(), self.balance, [t.timestamp for t in self.transactions],
+        ))
         total_cost = buy_price * quantity
-        
+
         if total_cost > self.balance:
             raise ValueError("Insufficient funds to buy shares.")
-        elif price==0:
-            raise ValueError(f"Unrecognized symbol {symbol}")
-        
+
         # Update holdings
         self.holdings[symbol] = self.holdings.get(symbol, 0) + quantity
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -102,6 +108,7 @@ class Account(BaseModel):
 
     def sell_shares(self, symbol: str, quantity: int, rationale: str) -> str:
         """ Sell shares of a stock if the user has enough shares. """
+        self._risk_check(lambda: check_sell(RiskLimits.from_env(), quantity, [t.timestamp for t in self.transactions]))
         if self.holdings.get(symbol, 0) < quantity:
             raise ValueError(f"Cannot sell {quantity} shares of {symbol}. Not enough shares held.")
         
@@ -162,6 +169,18 @@ class Account(BaseModel):
         write_log(self.name, "account", "Retrieved account details")
         return json.dumps(data)
     
+    def _risk_check(self, check) -> None:
+        """Run a risk check, logging any blocked trade before passing the error back to the agent."""
+        try:
+            check()
+        except RiskLimitError as e:
+            write_log(self.name, "risk", f"Blocked: {e}")
+            raise
+
+    def get_performance(self) -> dict:
+        """ Return, drawdown, volatility, realized profit and trade counts for the account. """
+        return performance(self, self.calculate_portfolio_value(), INITIAL_BALANCE, count_logs(self.name, "risk"))
+
     def get_strategy(self) -> str:
         """ Return the strategy of the account """
         write_log(self.name, "account", "Retrieved strategy")

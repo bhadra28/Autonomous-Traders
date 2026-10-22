@@ -14,6 +14,7 @@ from fastapi import FastAPI, HTTPException
 from backend import market
 from backend.accounts import Account
 from backend.database import read_log
+from backend.risk import RiskLimits
 from backend.trading_floor import names, lastnames, short_model_names
 
 # Mirrors the log colours in demo/ so the frontend reproduces the same panel.
@@ -24,6 +25,7 @@ LOG_COLORS = {
     "generation": "#dddd00",
     "response": "#aa00dd",
     "account": "#dd0000",
+    "risk": "#ff8c00",
 }
 DEFAULT_LOG_COLOR = "#87CEEB"
 
@@ -112,3 +114,16 @@ def get_trader_logs(name: str, last_n: int = 13) -> list[dict]:
         {"datetime": ts, "type": kind, "message": message, "color": LOG_COLORS.get(kind, DEFAULT_LOG_COLOR)}
         for ts, kind, message in rows
     ]
+
+
+@app.get("/api/risk-limits")
+def get_risk_limits() -> dict:
+    """The risk limits every trade is checked against."""
+    return RiskLimits.from_env().describe()
+
+
+@app.get("/api/traders/{name}/performance")
+def get_trader_performance(name: str) -> dict:
+    """Return, drawdown, volatility, realized profit, trade counts and blocked trades."""
+    require_trader(name)
+    return Account.get(name).get_performance()

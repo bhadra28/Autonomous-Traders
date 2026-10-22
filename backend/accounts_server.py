@@ -1,5 +1,6 @@
 from mcp.server.fastmcp import FastMCP #our own mcp server
 from .accounts import Account
+from .risk import RiskLimits
 
 mcp = FastMCP("accounts_server")
 
@@ -56,6 +57,23 @@ async def change_strategy(name: str, strategy: str) -> str:
         strategy: The new strategy for the account
     """
     return Account.get(name).change_strategy(strategy)
+
+@mcp.tool()
+async def get_risk_limits() -> dict:
+    """Get the risk limits every trade is checked against: max share of portfolio value per position,
+    max share of portfolio value per trade, and max trades per day. Use this to size trades before placing them."""
+    return RiskLimits.from_env().describe()
+
+
+@mcp.tool()
+async def get_performance(name: str) -> dict:
+    """Get performance metrics for the given account: total return, max drawdown and volatility (all in %),
+    realized profit, number of buys and sells, and how many trades the risk limits have blocked.
+
+    Args:
+        name: The name of the account holder
+    """
+    return Account.get(name).get_performance()
 
 @mcp.resource("accounts://accounts_server/{name}")
 async def read_account_resource(name: str) -> str:

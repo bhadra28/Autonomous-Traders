@@ -13,6 +13,7 @@ mapper = {
     "generation": Color.YELLOW,
     "response": Color.MAGENTA,
     "account": Color.RED,
+    "risk": Color.ORANGE,
 }
 
 
@@ -80,6 +81,22 @@ class Trader:
         sign = "+" if pnl >= 0 else "-"
         return f"<div style='text-align: center;background-color:{color};'><span style='font-size:32px'>${portfolio_value:,.0f}</span><span style='font-size:24px'>&nbsp;&nbsp;&nbsp;{sign}${abs(pnl):,.0f}</span></div>"
 
+    def get_metrics(self) -> str:
+        """One-line strip of return, drawdown, volatility and trades blocked by risk limits"""
+        m = self.account.get_performance()
+        cells = [
+            ("Return", f"{m['total_return_pct']:+.2f}%"),
+            ("Max drawdown", f"{m['max_drawdown_pct']:.2f}%"),
+            ("Volatility", f"{m['volatility_pct']:.2f}%"),
+            ("Trades", f"{m['buys']} buys / {m['sells']} sells"),
+            ("Blocked by risk", str(m["blocked_trades"])),
+        ]
+        html = "".join(
+            f"<div><div style='font-size:11px;color:#888;'>{label}</div><div style='font-size:15px;'>{value}</div></div>"
+            for label, value in cells
+        )
+        return f"<div style='display:flex;justify-content:space-around;text-align:center;'>{html}</div>"
+
     def get_logs(self, previous=None) -> str:
         logs = read_log(self.name, last_n=13)
         response = ""
@@ -106,6 +123,8 @@ class TraderView:
             gr.HTML(self.trader.get_title())
             with gr.Row():
                 self.portfolio_value = gr.HTML(self.trader.get_portfolio_value)
+            with gr.Row():
+                self.metrics = gr.HTML(self.trader.get_metrics)
             with gr.Row():
                 self.chart = gr.Plot(
                     self.trader.get_portfolio_value_chart, container=True, show_label=False
@@ -139,6 +158,7 @@ class TraderView:
             inputs=[],
             outputs=[
                 self.portfolio_value,
+                self.metrics,
                 self.chart,
                 self.holdings_table,
                 self.transactions_table,
@@ -159,6 +179,7 @@ class TraderView:
         self.trader.reload()
         return (
             self.trader.get_portfolio_value(),
+            self.trader.get_metrics(),
             self.trader.get_portfolio_value_chart(),
             self.trader.get_holdings_df(),
             self.trader.get_transactions_df(),

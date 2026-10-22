@@ -48,3 +48,4 @@ class Color(Enum):
     MAGENTA = "#aa00dd"
     CYAN = "#00dddd"
     WHITE = "#87CEEB"
+    ORANGE = "#ff8c00"

@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import json
 from datetime import datetime
@@ -5,7 +6,8 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-DB = "accounts.db"
+# Overridable so tests can run against a throwaway database.
+DB = os.getenv("ACCOUNTS_DB", "accounts.db")
 
 
 with sqlite3.connect(DB) as conn:
@@ -80,3 +82,10 @@ def read_log(name: str, last_n=10):
         ''', (name.lower(), last_n))
         
         return reversed(cursor.fetchall())
+
+def count_logs(name: str, type: str) -> int:
+    """Count log entries of one type for a name, e.g. how many trades risk checks blocked."""
+    with sqlite3.connect(DB) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM logs WHERE name = ? AND type = ?', (name.lower(), type))
+        return cursor.fetchone()[0]
